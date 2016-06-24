@@ -10,6 +10,7 @@ import ru.javawebinar.topjava.repository.UserRepository;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * GKislin
@@ -21,6 +22,11 @@ public class InMemoryUserRepositoryImpl implements UserRepository {
     private Map<Integer, User> repository = new ConcurrentHashMap<>();
     private AtomicInteger counter = new AtomicInteger(0);
 
+    public static final int USER_ID = 1;
+    public static final int ADMIN_ID = 2;
+
+    private static final Comparator<User> USER_COMPARATOR = Comparator.comparing(User::getName);
+
     {
         this.save(new User(1, "admin", "_rolep_@mail.ru", "admin", Role.ROLE_ADMIN));
         this.save(new User(2, "user", "user@user.com", "user", Role.ROLE_USER));
@@ -30,17 +36,14 @@ public class InMemoryUserRepositoryImpl implements UserRepository {
     @Override
     public boolean delete(int id) {
         LOG.info("delete " + id);
-        if (!repository.containsKey(id))
-            return false;
-        else
-            repository.remove(id);
-        return true;
+        return repository.remove(id) != null;
     }
 
     @Override
     public User save(User user) {
         LOG.info("save " + user);
-        if (!(repository.containsKey(user.getId()) && repository.get(user.getId()).getName().equals(user.getName()))) {
+        Objects.requireNonNull(user);
+        if (user.isNew()) {
             user.setId(counter.incrementAndGet());
         }
         repository.put(user.getId(), user);
@@ -56,23 +59,14 @@ public class InMemoryUserRepositoryImpl implements UserRepository {
     @Override
     public List<User> getAll() {
         LOG.info("getAll");
-
-        List<User> users = new ArrayList(repository.values());
-
-        Collections.sort(users, (u1, u2) -> u1.getName().compareTo(u2.getName()));
-
-        return users;
+        return repository.values().stream().sorted(USER_COMPARATOR).collect(Collectors.toList());
     }
 
     @Override
     public User getByEmail(String email) {
+        Objects.requireNonNull(email);
         LOG.info("getByEmail " + email);
-        for (User user : repository.values()) {
-            if (user.getEmail().equals(email))
-                return user;
-        }
+        return repository.values().stream().filter(u -> u.getEmail().equals(email)).findFirst().orElse(null);
 
-        Optional<User> result = repository.values().stream().filter(e -> e.getEmail().equals(email)).findFirst();
-        return result.get();
     }
 }
